@@ -16,7 +16,7 @@ resource "aws_s3_bucket_website_configuration" "wave" {
   }
 
   error_document {
-    key = "index.html"
+    key = "error.html"
   }
 
 }
