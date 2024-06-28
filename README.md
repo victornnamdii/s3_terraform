@@ -30,4 +30,20 @@ This module is responsible for creating the required S3 bucket and uploading the
 - The `aws_cloudfront_origin_access_identity` creates an OAI for the distribution for access to the S3 bucket while preventing direct public access.
 - The cloudfront's domain name is then outputted for later use.
 
+### iam
 
+This module creates an IAM role and policy that allow our CloudFront distribution to securely access our S3 bucket, using an Origin Access Identity (OAI). Here’s a breakdown of what each part does:
+
+- The `aws_iam_role` resource creates an IAM role that can be assumed by our cloudfront distribution
+
+- `name` specifies the name of the IAM role, here it’s "cloudfront-access-identity-role".
+- `assume_role_policy` defines the  policy document that grants the distribution the ability to assume this role.
+	- `Action: "sts:AssumeRole"` allows the role to be assumed.
+	- `Effect: "Allow"` allows the specified actions.
+	- `Principal: { "Service": "cloudfront.amazonaws.com" }` specifies cloudfront as the principal that can assume the role.
+- The `aws_iam_role_policy` resource attaches a policy to the previously created IAM role, granting it permissions to access the S3 bucket.
+	- `role`: associates the policy with the IAM role created above, using `aws_iam_role.cloudfront_access_identity.id`.
+	- `policy` defines the actual permissions.
+	- `"s3:GetObject"` allows reading objects from the S3 bucket.
+	- `"s3:ListBucket"` allows listing objects within the bucket.
+	- `"${var.s3_bucket_arn}/*"` refers to all objects within the S3 bucket, the bucket's arn is gotten from the outputs from the `s3_bucket` module passed as a variable to the `iam` module.
