@@ -131,3 +131,14 @@ This sub module sets up an API Gateway resource with methods and integrations. I
 	- `authorization = var.authorization` defines the authorization type for this method. In our case, it is set to "NONE" since our website does not require any authorization.
 	- `request_parameters = var.request_parameters` contains optional map of request parameters that can be passed to the method. In this case, i set it to an empty map since i do not require request parameters for my website
 
+### Root module (main directory)
+
+Thus module contains the configuration for the terraform deployment and connects all the sub modules contained above. The file structure is explained below:
+
+- `main.tf` contains all the sub modules with their variables passed to them
+- `variables.tf` contains all the variables required for the deployment
+- `terraform.tfvars` contains the values for each variable. This file was not pushed for security reasons.
+- `outputs.tf` contains values i want to be outputted
+- `data.tf` contains data sources for the deployment
+
+To run the deployment, navigate to the `main` directory, and run `terraform apply`
