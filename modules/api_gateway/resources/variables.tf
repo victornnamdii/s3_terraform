@@ -29,25 +29,3 @@ variable "request_parameters" {
   type        = map(bool)
   default     = {}
 }
-
-variable "integration_uri" {
-  description = "The URI for the integration"
-  type        = string
-}
-
-variable "request_templates" {
-  description = "The request templates for the integration"
-  type        = map(string)
-  default     = {}
-}
-
-variable "additional_methods" {
-  description = "Map of additional methods to create with their configurations"
-  type        = map(object({
-    authorization     = string
-    request_parameters = map(bool)
-    integration_uri    = string
-    request_templates  = map(string)
-  }))
-  default = {}
-}

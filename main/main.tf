@@ -52,7 +52,4 @@ module "api_gateway_resources" {
   http_method        = var.http_method
   authorization      = var.authorization
   request_parameters = var.request_parameters
-  integration_uri    = var.integration_uri
-  request_templates  = var.request_templates
-  additional_methods = var.additional_methods
 }

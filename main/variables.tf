@@ -91,10 +91,6 @@ type        = map(bool)
 default     = {}
 }
 
-variable "integration_uri" {
-description = "The URI for the integration"
-type        = string
-}
 
 variable "request_templates" {
 description = "The request templates for the integration"
