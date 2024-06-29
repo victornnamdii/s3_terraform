@@ -9,11 +9,11 @@ This repo contains my solution to the 2nd assignment in my altschhol 3rd semeste
 
 ## Solution
 
-My deployment was divided into 6 sub modules relating to each major AWS service. This was to achieve a clear, maintainable and reliable structure. All 6 modules were then connected to the root module in the `main` directory that passes the necessary variables and gets the required outputs. The 6 sub modules are explained below:
+My deployment was divided into 6 sub modules relating to each major AWS service. This was to achieve a clear, maintainable and reliable structure. All 6 modules were then connected to the root module in the `main` directory that passes the necessary variables and gets the required outputs. The 6 sub modules and the root module are explained below:
 
 ### s3_bucket
 
-This module is responsible for creating the required S3 bucket and uploading the files contained in the `html` directory which carry the files for the static website. It uploads the files using the `upload_object` resource. It then configures the bucket to use `index.html` and `error.html` as the index and error documents respectively usimg the `ws_s3_bucket_website_configuration` resource. The `aws_s3_bucket_policy` defines and and attaches the policy to the S3 bucket using it's ID and the policy is defined in the `policy` component to allow access for files to be retrieved from the bucket. Then bucket's arn and endpoint are then outputted for use in the cloudfront and IAM modules.
+This module is responsible for creating the required S3 bucket and uploading the files contained in the `html` directory which carry the files for the static website. It uploads the files using the `upload_object` resource. It then configures the bucket to use `index.html` and `error.html` as the index and error documents respectively usimg the `ws_s3_bucket_website_configuration` resource. The `aws_s3_bucket_policy` defines and and attaches the policy to the S3 bucket using it's ID and the policy is defined in the `policy` component to allow access for files to be retrieved from the bucket. Then bucket's ARN and endpoint are then outputted for use in the cloudfront and IAM modules.
 
 ### cloudfront
 
@@ -28,11 +28,11 @@ This module is responsible for creating the required S3 bucket and uploading the
 - `restrictions { geo_restrcition { restriction_type = "none"} }` ensures that no geographic restrictions are set on content delivery
 - `price_class = "PriceClass_100"` sets the distribution to use the least expensive configuration
 - The `aws_cloudfront_origin_access_identity` creates an OAI for the distribution for access to the S3 bucket while preventing direct public access.
-- The cloudfront's domain name is then outputted for later use.
+- The cloudfront's domain name and zone id is then outputted for later use.
 
 ### iam
 
-This module creates an IAM role and policy that allow our CloudFront distribution to securely access our S3 bucket, using an Origin Access Identity (OAI). Here’s a breakdown of what each part does:
+This module creates an IAM role and policy that allow our CloudFront distribution to securely access our S3 bucket, using an Origin Access Identity (OAI).
 
 - The `aws_iam_role` resource creates an IAM role that can be assumed by our cloudfront distribution
 
@@ -46,4 +46,40 @@ This module creates an IAM role and policy that allow our CloudFront distributio
 	- `policy` defines the actual permissions.
 	- `"s3:GetObject"` allows reading objects from the S3 bucket.
 	- `"s3:ListBucket"` allows listing objects within the bucket.
-	- `"${var.s3_bucket_arn}/*"` refers to all objects within the S3 bucket, the bucket's arn is gotten from the outputs from the `s3_bucket` module passed as a variable to the `iam` module.
+	- `"${var.s3_bucket_arn}/*"` refers to all objects within the S3 bucket, the bucket's ARN is gotten from the outputs from the `s3_bucket` module passed as a variable to the `iam` module.
+
+### route53
+
+This module creates a DNS record in AWS Route 53 for a domain, mapping it to our cloudfront distribution.
+
+- The `aws_route53_record` resource creates a DNS record and pecifies that the resource being managed is a Route 53 DNS record.
+- `zone_id = var.zone_id` specifies the hosted zone in Route 53 where the DNS record will be created. This is passed through the `zone_id` variable which would contain the ID of the route 53 hosted zone.
+- `name = var.domain_name` specifies the name of the DNS record as our domain name through a variable.
+- `type = "A"` specifies that the record is an address record, which maps our domain name to an IP address, in this case would be our cloudfront distribution's IP address.
+- The `alias` block specifies that this DNS record is an alias to another AWS resource, in this case, our cloudfront distribution.
+    - `name = var.cloudfront_domain_name` specifies the domain name of the cloudfront distribution to which this alias record would point to.
+	- `zone_id = var.cloudfront_zone_id` specifies the hosted zone ID for CloudFront in Route 53. This value is usually constant (Z2FDTNDATAQYW2) as it’s the same for all cloudfront distributions.
+	- `evaluate_target_health = false` specifies whether Route 53 should evaluate the health of the target before responding to DNS queries. `false` means Route 53 does not perform health checks on the cloudfront distribution when determining DNS responses.
+
+### certificate
+
+This module sets up an AWS certificate manager certificate for our domain, validates it using DNS, and integrates it with Route 53.
+
+- The `aws_acm_certificate` resource requests an SSL/TLS certificate from AWS certificate manager.
+- `domain_name = var.domain_name` specifies the  domain name for the certificate. Our domain name is passed here through a variable.
+- `validation_method = "DNS"` specifies that the domain validation method for the certificate is DNS. This means AWS certificate manager will generate DNS records that need to be added to the DNS provider to prove domain ownership.
+- `subject_alternative_names = var.alternative_names` specifies any additional domain names  that shoukd be included in the certificate. In our case, an empty list is passed since we do not require alternative domain names
+- `lifecycle { create_before_destroy = true }` ensures that a new certificate is created before the old one is destroyed, to minimize downtime during updates.
+- `tags = var.tags` adds tags to the certificate for organization and management purposes.
+- The `aws_route53_record` resource creates DNS records in Route 53 to validate the ACM certificate. It creates multiple DNS records, one for each domain validation option provided by ACM.
+	- It uses `aws_acm_certificate.website_certificate.domain_validation_options`, which contains the DNS validation records ACM requires to verify domain ownership.
+	- Inside the for_each loop, `name = dvo.resource_record_name` contains name of the DNS record that needs to be added for validation, `type = dvo.resource_record_type` contains the type of DNS record. `value = dvo.resource_record_value` contains the value of the DNS record, `zone_id = var.zone_id` contains the ID of the Route 53 hosted zone where the DNS record should be created.
+	- Route 53 Record Configuration:
+	    -  `name = each.value.name` sets the name of the DNS record from the for_each map.
+	    - `type = each.value.type` sets the type of the DNS record.
+	    - `zone_id = each.value.zone_id` specifies the hosted zone ID.
+	    - `records = [ each.value.value ]`ets the DNS record value.
+	    - `ttl = 300` sets the Time-To-Live for the DNS record to 300 seconds.
+- The `aws_acm_certificate_validation` resource completes the validation of the ACM certificate using the Route 53 DNS records created above.
+- `certificate_arn = aws_acm_certificate.website_certificate.arn` specifies the ARN of the ACM certificate to validate.
+- `validation_record_fqdns = [ for record in aws_route53_record.certificate_validation : record.fqdn ]` collects the Fully Qualified Domain Names (FQDNs) of the Route 53 DNS records created for validation. `record.fqdn` refers to the full DNS name of each Route 53 record.

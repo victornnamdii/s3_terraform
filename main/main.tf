@@ -33,6 +33,7 @@ module "route53" {
   domain_name            = var.domain_name
   zone_id                = data.aws_route53_zone.primary
   cloudfront_domain_name = module.cloudfront.cloudfront_domain_name
+  cloudfront_zone_id = module.cloudfront.cloudfront_zone_id
 }
 
 module "api_gateway_config" {
